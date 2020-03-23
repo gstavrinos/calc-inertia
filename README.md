@@ -1,5 +1,5 @@
 # calc_inertia.py
-With an object's STL file and mass, calculate its inertia, based on its bounding box, in mass*dimension*scale. The output is URDF-ready.
+With an object's STL file and mass, calculate its inertia, based on its bounding box, in mass \* dimension \* scale. The output is URDF-ready.
 
 ## Dependencies (Compatible with both Python2 and Python3)
 * numpy-stl (sudo pip install numpy-stl)
