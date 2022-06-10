@@ -2,79 +2,123 @@
 
 import os
 import sys
-import stl
-import rospkg
-import xml.etree.ElementTree
-from urdf_parser_py.urdf import URDF
+#  import stl
+import xacro
+from stl import mesh
+from urdf_parser_py.urdf import URDF, Mesh, Box, Sphere, Cylinder
 
-#(sudo pip install numpy-stl)
-#(sudo pip install urdf-parser-py)
+#(pip install xacro)
+#(pip install numpy-stl)
+#(pip install urdf-parser-py)
 
 # Command line params:
 # 1: URDF file
 
-
 def getDimensions(model):
     minx = maxx = miny = maxy = minz = maxz = None
-    for p in model.points:
-        if minx is None:
-            minx = p[stl.Dimension.X]
-            maxx = p[stl.Dimension.X]
-            miny = p[stl.Dimension.Y]
-            maxy = p[stl.Dimension.Y]
-            minz = p[stl.Dimension.Z]
-            maxz = p[stl.Dimension.Z]
-        else:
-            maxx = max(p[stl.Dimension.X], maxx)
-            minx = min(p[stl.Dimension.X], minx)
-            maxy = max(p[stl.Dimension.Y], maxy)
-            miny = min(p[stl.Dimension.Y], miny)
-            maxz = max(p[stl.Dimension.Z], maxz)
-            minz = min(p[stl.Dimension.Z], minz)
-    return maxx - minx, maxy - miny, maxz - minz
+    return model.x.max() - model.x.min(), model.y.max() - model.y.min(), model.z.max() - model.z.min()
 
+    #  for p in model.points:
+        #  if minx is None:
+            #  minx = p[stl.Dimension.X]
+            #  maxx = p[.Dimension.X]
+            #  miny = p[stl.Dimension.Y]
+            #  maxy = p[stl.Dimension.Y]
+            #  minz = p[stl.Dimension.Z]
+            #  maxz = p[stl.Dimension.Z]
+        #  else:
+            #  maxx = max(p[stl.Dimension.X], maxx)
+            #  minx = min(p[stl.Dimension.X], minx)
+            #  maxy = max(p[stl.Dimension.Y], maxy)
+            #  miny = min(p[stl.Dimension.Y], miny)
+            #  maxz = max(p[stl.Dimension.Z], maxz)
+            #  minz = min(p[stl.Dimension.Z], minz)
+    #  return maxx - minx, maxy - miny, maxz - minz
 
 # Based on https://en.wikipedia.org/wiki/List_of_moments_of_inertia#List_of_3D_inertia_tensors
-def getInertia(x, y, z, m, s):
+def getInertia(geometry, m, s):
+    print("\033[97m Link name: \033[0m" + link_name)
+    print("\033[93m Mass: \033[0m" + str(mass))
+    print("\033[95m Scale: \033[0m" + str(scale))
+    xx = yy = zz = 0.0
+    if type(geometry) == Mesh:
+        print("\033[94m Mesh: \033[0m" + geometry.filename)
+        print("---\nCalculating inertia...\n---")
+        # TODO handle filename
+        ROS_VERSION = os.getenv("ROS_VERSION")
+        get_pkg_fn = None
+        if not ROS_VERSION:
+            print("Could not find the ROS_VERSION environment variable, thus, can't determine your ros version. Assuming ROS2!")
+            ROS_VERSION = "2"
+        if ROS_VERSION == "1":
+            import rospkg
+            get_pkg_fn = rospkg.RosPack().get_path
+        else:
+            import ament_index_python
+            get_pkg_fn = ament_index_python.get_package_share_path
+        pkg_tag = "package://"
+        file_tag = "file://"
+        mesh_file = ""
+        if geometry.filename.startswith(pkg_tag):
+            package, mesh_file = geometry.filename.split(pkg_tag)[1].split(os.sep, 1)
+            mesh_file = get_pkg_fn(package)+os.sep+mesh
+        elif geometry.filename.startswith(file_tag):
+            mesh_file = geometry.filename.replace(file_tag, "")
+        model = mesh.Mesh.from_file(mesh_file)
+        x,y,z = getDimensions(model)
+        xx,yy,zz = getBoxInertia(x, y, z, m, geometry.scale)
+    elif type(geometry) == Box:
+        print("\033[94m Box: \033[0m" + geometry.size)
+        print("---\nCalculating inertia...\n---")
+        x,y,z = geometry.size
+        xx,yy,zz = getBoxInertia(x, y, z, m, s)
+    elif type(geometry) == Sphere:
+        print("\033[94m Box: \033[0m" + geometry.size)
+        print("---\nCalculating inertia...\n---")
+        x,y,z = geometry.size
+        xx,yy,zz = getBoxInertia(x, y, z, m, s)
+
+    print("\033[92m")
+    print("<inertia  ixx=\"%s\" ixy=\"0\" ixz=\"0\" iyy=\"%s\" iyz=\"0\" izz=\"%s\" />" % (xx,yy,zz))
+    print("\033[0m")
+
+def getBoxInertia(x, y, z, m, s):
     xx = 1./12 * m * (y**2 + z**2) * s[0]
     yy = 1./12 * m * (x**2 + z**2) * s[1]
     zz = 1./12 * m * (x**2 + y**2) * s[2]
     return xx, yy, zz
 
+def getSphereInertia(r, m):
+    i = 2./5 * m * r**2
+    return i, i, i
+
+def getCylinderInertia(r, h, m):
+    xx = yy = 1./12 * (3 * r**2 + h**2)
+    zz = 1./2 * m * r**2
+    return xx, yy, zz
+
 if __name__ == '__main__':
-    rospack = rospkg.RosPack()
-    for (ev, el) in xml.etree.ElementTree.iterparse(sys.argv[1]):
-        link_name = mass = mesh = None
+    #  robot = URDF.from_xml_string(xacro.process_file(sys.argv[1]).toprettyxml(indent="    "))
+    robot = URDF.from_xml_string(xacro.process_file(sys.argv[1]).toprettyxml())
+    for link in robot.links:
+        link_name = mass = geometry = None
         x = y = z = 0.0
         scale = [1.0, 1.0, 1.0]
-        if el.tag == "link":
-            link_name = el.get("name")
-            
-            for i in el:
-                if i.tag == "inertial":
-                    for j in i:
-                        if j.tag == "mass":
-                            mass = float(j.get("value"))
-                if i.tag == "visual":
-                    for j in i:
-                        if j.tag == "geometry":
-                            for k in j:
-                                if k.tag == "mesh":
-                                    mesh = k.get("filename")
-                                    package, mesh = mesh.split("package://")[1].split("/", 1)
-                                    mesh = rospack.get_path(package)+os.sep+mesh
+        link_name = link.name
+        inertial = link.inertial
+        if inertial:
+            mass = inertial.mass
+            if mass:
+                visual = link.visual
+                if visual:
+                    geometry = visual.geometry
+                # If we don't find a visual geometry, look for a collision one
+                else:
+                    collision = link.collision
+                    if collision:
+                        geometry = collision.geometry
 
-                                    scale = k.get("scale", default=[1.0, 1.0, 1.0]).split()
-                                    scale = [float(n) for n in scale]
-
-            if mass != None and mesh != None:
-                print("\033[97m Link name: \033[0m" + link_name)
-                print("\033[93m Mass: \033[0m" + str(mass))
-                print("\033[94m Mesh: \033[0m" + mesh)
-                print("\033[95m Scale: \033[0m" + str(scale))
-                print("---\nCalculating inertia...\n---")
-                model = stl.mesh.Mesh.from_file(mesh)
-                x, y, z = getDimensions(model)
-                print("\033[92m")
-                print("<inertia  ixx=\"%s\" ixy=\"0\" ixz=\"0\" iyy=\"%s\" iyz=\"0\" izz=\"%s\" />" % (getInertia(x, y, z, mass, scale)))
-                print("\033[0m")
+        if mass != None and geometry != None:
+            if geometry.scale:
+                scale = geometry.scale
+            getInertia(geometry, mass, scale)
