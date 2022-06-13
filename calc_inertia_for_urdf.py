@@ -2,38 +2,34 @@
 
 import os
 import sys
-#  import stl
 import xacro
+import collada
 from stl import mesh
 from urdf_parser_py.urdf import URDF, Mesh, Box, Sphere, Cylinder
 
-#(pip install xacro)
-#(pip install numpy-stl)
-#(pip install urdf-parser-py)
+# (pip install xacro)
+# (pip install numpy-stl)
+# (pip install pycollada)
+# (pip install urdf-parser-py)
 
 # Command line params:
 # 1: URDF file
 
-def getDimensions(model):
-    minx = maxx = miny = maxy = minz = maxz = None
+def getSTLDimensions(model):
     return model.x.max() - model.x.min(), model.y.max() - model.y.min(), model.z.max() - model.z.min()
 
-    #  for p in model.points:
-        #  if minx is None:
-            #  minx = p[stl.Dimension.X]
-            #  maxx = p[.Dimension.X]
-            #  miny = p[stl.Dimension.Y]
-            #  maxy = p[stl.Dimension.Y]
-            #  minz = p[stl.Dimension.Z]
-            #  maxz = p[stl.Dimension.Z]
-        #  else:
-            #  maxx = max(p[stl.Dimension.X], maxx)
-            #  minx = min(p[stl.Dimension.X], minx)
-            #  maxy = max(p[stl.Dimension.Y], maxy)
-            #  miny = min(p[stl.Dimension.Y], miny)
-            #  maxz = max(p[stl.Dimension.Z], maxz)
-            #  minz = min(p[stl.Dimension.Z], minz)
-    #  return maxx - minx, maxy - miny, maxz - minz
+def getColladaDimensions(model):
+    minx = miny = minz = float("inf")
+    maxx = maxy = maxz = float("-inf")
+    for tr_vertex in model.geometries[0].primitives[0].vertex[model.geometries[0].primitives[0].vertex_index]:
+        for v in tr_vertex:
+            maxx = maxx if v[0] <= maxx else v[0]
+            maxy = maxy if v[1] <= maxy else v[1]
+            maxz = maxz if v[2] <= maxz else v[2]
+            minx = minx if v[0] >= minx else v[0]
+            miny = miny if v[1] >= miny else v[1]
+            minz = minz if v[2] >= minz else v[2]
+    return maxx - minx, maxy - miny, maxz - minz
 
 # Based on https://en.wikipedia.org/wiki/List_of_moments_of_inertia#List_of_3D_inertia_tensors
 def getInertia(geometry, m, s):
@@ -64,8 +60,14 @@ def getInertia(geometry, m, s):
             mesh_file = get_pkg_fn(package)+os.sep+mesh
         elif geometry.filename.startswith(file_tag):
             mesh_file = geometry.filename.replace(file_tag, "")
-        model = mesh.Mesh.from_file(mesh_file)
-        x,y,z = getDimensions(model)
+        x = y = z = 0
+        if mesh_file.endswith(".stl"):
+            model = mesh.Mesh.from_file(mesh_file)
+            x,y,z = getSTLDimensions(model)
+        # Assuming .dae
+        else:
+            model = collada.Collada(mesh_file)
+            x,y,z = getColladaDimensions(model)
         xx,yy,zz = getBoxInertia(x, y, z, m, geometry.scale)
     elif type(geometry) == Box:
         print("\033[94m Box: \033[0m" + geometry.size)
@@ -98,7 +100,6 @@ def getCylinderInertia(r, h, m):
     return xx, yy, zz
 
 if __name__ == '__main__':
-    #  robot = URDF.from_xml_string(xacro.process_file(sys.argv[1]).toprettyxml(indent="    "))
     robot = URDF.from_xml_string(xacro.process_file(sys.argv[1]).toprettyxml())
     for link in robot.links:
         link_name = mass = geometry = None

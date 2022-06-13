@@ -4,10 +4,14 @@ Based on a provided URDF (or xacro), it reads all geometries that have a `mass` 
 ## Dependencies
 * xacro (pip install xacro)
 * numpy-stl (pip install numpy-stl)
+* pycollada (pip install pycollada)
 * urdf_paser_py (pip install urdf-parser-py)
 
 ## Command line params
 * 1: URDF file
+
+### Features added in release 2.1
+* Support for Collada (.dae) mesh files (in addition to STL)
 
 ### Features added in release 2.0
 * Support for ROS1 **AND** ROS2. This functionality basically involves looking for mesh files in `package://` tags. (If your urdf/xacro only includes `file://` tags, there is nothing ROS-related to worry about)
