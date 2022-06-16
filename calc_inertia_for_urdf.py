@@ -7,10 +7,8 @@ import collada
 from stl import mesh
 from urdf_parser_py.urdf import URDF, Mesh, Box, Sphere, Cylinder
 
-# (pip install xacro)
-# (pip install numpy-stl)
-# (pip install pycollada)
-# (pip install urdf-parser-py)
+# For dependencies:
+# pip install -r requirements.txt
 
 # Command line params:
 # 1: URDF file
@@ -34,13 +32,12 @@ def getColladaDimensions(model):
 # Based on https://en.wikipedia.org/wiki/List_of_moments_of_inertia#List_of_3D_inertia_tensors
 def getInertia(geometry, m, s):
     print("\033[97m Link name: \033[0m" + link_name)
-    print("\033[93m Mass: \033[0m" + str(mass))
-    print("\033[95m Scale: \033[0m" + str(scale))
+    print("\033[93m Mass: \033[0m" + str(m))
+    print("\033[95m Scale: \033[0m" + str(s))
     xx = yy = zz = 0.0
     if type(geometry) == Mesh:
         print("\033[94m Mesh: \033[0m" + geometry.filename)
         print("---\nCalculating inertia...\n---")
-        # TODO handle filename
         ROS_VERSION = os.getenv("ROS_VERSION")
         get_pkg_fn = None
         if not ROS_VERSION:
@@ -57,7 +54,8 @@ def getInertia(geometry, m, s):
         mesh_file = ""
         if geometry.filename.startswith(pkg_tag):
             package, mesh_file = geometry.filename.split(pkg_tag)[1].split(os.sep, 1)
-            mesh_file = get_pkg_fn(package)+os.sep+mesh
+            print(get_pkg_fn(package))
+            mesh_file = str(get_pkg_fn(package))+os.sep+mesh_file
         elif geometry.filename.startswith(file_tag):
             mesh_file = geometry.filename.replace(file_tag, "")
         x = y = z = 0
@@ -68,26 +66,32 @@ def getInertia(geometry, m, s):
         else:
             model = collada.Collada(mesh_file)
             x,y,z = getColladaDimensions(model)
-        xx,yy,zz = getBoxInertia(x, y, z, m, geometry.scale)
+        xx,yy,zz = getBoxInertia(x, y, z, m, s)
     elif type(geometry) == Box:
-        print("\033[94m Box: \033[0m" + geometry.size)
+        print("\033[94m Box: \033[0m" + str(geometry.size))
         print("---\nCalculating inertia...\n---")
         x,y,z = geometry.size
         xx,yy,zz = getBoxInertia(x, y, z, m, s)
     elif type(geometry) == Sphere:
-        print("\033[94m Box: \033[0m" + geometry.size)
+        print("\033[94m Sphere Radius: \033[0m" + str(geometry.radius))
         print("---\nCalculating inertia...\n---")
-        x,y,z = geometry.size
-        xx,yy,zz = getBoxInertia(x, y, z, m, s)
+        xx,yy,zz = getSphereInertia(geometry.radius, m)
+    elif type(geometry) == Cylinder:
+        print("\033[94m Cylinder Radius and Length: \033[0m" + str(geometry.radius) + "," + str(geometry.length))
+        print("---\nCalculating inertia...\n---")
+        xx,yy,zz = getCylinderInertia(geometry.radius, geometry.length, m)
 
     print("\033[92m")
     print("<inertia  ixx=\"%s\" ixy=\"0\" ixz=\"0\" iyy=\"%s\" iyz=\"0\" izz=\"%s\" />" % (xx,yy,zz))
     print("\033[0m")
 
 def getBoxInertia(x, y, z, m, s):
-    xx = 1./12 * m * (y**2 + z**2) * s[0]
-    yy = 1./12 * m * (x**2 + z**2) * s[1]
-    zz = 1./12 * m * (x**2 + y**2) * s[2]
+    x *= s[0]
+    y *= s[1]
+    z *= s[2]
+    xx = 1./12 * m * (y**2 + z**2)
+    yy = 1./12 * m * (x**2 + z**2)
+    zz = 1./12 * m * (x**2 + y**2)
     return xx, yy, zz
 
 def getSphereInertia(r, m):
@@ -120,6 +124,9 @@ if __name__ == '__main__':
                         geometry = collision.geometry
 
         if mass != None and geometry != None:
-            if geometry.scale:
-                scale = geometry.scale
+            try:
+                if geometry.scale:
+                    scale = geometry.scale
+            except:
+                scale = [1.0,1.0,1.0]
             getInertia(geometry, mass, scale)
