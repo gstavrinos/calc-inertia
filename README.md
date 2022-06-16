@@ -7,6 +7,8 @@ Based on a provided URDF (or xacro), it reads all geometries that have a `mass` 
 * pycollada (pip install pycollada)
 * urdf_paser_py (pip install urdf-parser-py)
 
+Install with `pip install -r requirements.txt`
+
 ## Command line params
 * 1: URDF file
 

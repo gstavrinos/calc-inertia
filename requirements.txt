@@ -1,0 +1,4 @@
+xacro
+numpy-stl
+pycollada
+urdf-parser-py
