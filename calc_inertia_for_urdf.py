@@ -99,7 +99,7 @@ def getSphereInertia(r, m):
     return i, i, i
 
 def getCylinderInertia(r, h, m):
-    xx = yy = 1./12 * (3 * r**2 + h**2)
+    xx = yy = 1./12 * m * (3 * r**2 + h**2)
     zz = 1./2 * m * r**2
     return xx, yy, zz
 
